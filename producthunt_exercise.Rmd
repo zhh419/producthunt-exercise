@@ -1,0 +1,99 @@
+---
+title: "Results"
+author: "Zhanghh"
+date: "2019/2/15"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, fig.showtext = TRUE)
+library(showtext)
+library(dbplyr)
+library(dplyr)
+library(tidyverse)
+library(ggthemes)
+library(lubridate)
+library(RColorBrewer)
+
+old_theme <- theme_get()
+new_theme <- theme_set(theme_tufte() + theme(text = element_text(family = "wqy-microhei"), 
+                                             plot.title = element_text(family = "wqy-microhei",
+                                                                       hjust = 0.5,
+                                                                       size = 10),
+                                             legend.title = element_text(family = "wqy-microhei",
+                                                                        hjust = 0.5,
+                                                                        size = 10),
+                                             legend.position = "right"))
+
+df1 <- read.csv('Data/AllTopics.csv')
+df2 <- read.csv('Data/PostsForAnalysis.csv')
+df3 <- read.csv('Data/UsersForAnalysis.csv')
+df4 <- read.csv('Data/PostsTopicsForAnalysis.csv')
+
+x1 <- df4 %>% 
+  gather(topic, value, -id) %>% 
+  filter(!topic == "tech",
+         !is.na(value))
+
+x2 <- df2 %>% 
+  filter(votes_count>=111)
+
+```
+## 针对主题的探索
+```{r a, echo = FALSE, warning = FALSE}
+df1 %>% 
+  mutate(rank = row_number( desc(num_posts) )) %>% 
+  filter(rank <= 20) %>% 
+  arrange(rank) %>% 
+  ggplot(aes(name)) + 
+    geom_bar(aes(reorder(name,rank), num_posts), width = 0.15, stat = "identity") + 
+    geom_point(aes(name, num_posts, size = num_followers)) + 
+    labs(x ="topic", y = "posts")
+    
+```
+  
+  
+## 针对帖子发布时间的探索
+```{r b, echo = FALSE, warning = FALSE}
+df2 %>% 
+  mutate(Year = year(date)) %>% 
+  group_by(Year, time_of_day) %>% 
+  summarise(Votes = sum(votes_count)) %>% 
+  ggplot() + 
+    geom_bar(aes(Year, Votes, fill = time_of_day), stat = "identity",position = "dodge")
+   
+```
+  
+  
+## 搜索科技产品触觉达人
+```{r c, echo = FALSE, warning = FALSE}
+df3 %>% 
+  filter(posts_count >= 30) %>% 
+  inner_join(df2,by = 'user_id') %>% 
+  group_by(name.x) %>% 
+  summarise(votes_num = sum(votes_count.y), 
+            posts_num = n(),
+            avg_votes = votes_num/posts_num) %>% 
+  mutate(rank = row_number( desc(avg_votes) )) %>% 
+  filter(rank <= 20) %>% 
+  ggplot() + 
+    geom_bar(aes(reorder(name.x,desc(rank)), avg_votes), width = 0.1, stat = "identity", fill = "orange") +
+    geom_point(aes(name.x, avg_votes), color = "orange") + 
+    labs(x ="User", y = "avg_votes") + 
+    coord_flip()
+```
+  
+    
+## 哪些主题更受用户青睐
+```{r d, echo = FALSE, warning = FALSE}
+x1 %>% 
+  inner_join(x2, by ="id") %>% 
+  group_by(topic) %>% 
+  summarise(times = n()) %>% 
+  mutate(rank = row_number( desc(times) )) %>% 
+  filter(rank <= 10) %>% 
+  ggplot() + 
+    geom_bar(aes(reorder(topic,desc(rank)), times, fill = topic), stat = "identity", width = 0.2) + 
+    labs(x ="topic") +
+    coord_polar()
+```
